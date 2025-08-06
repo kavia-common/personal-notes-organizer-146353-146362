@@ -1,101 +1,219 @@
-import Image from "next/image";
+"use client";
+import React, { useCallback, useEffect, useState } from "react";
+import Header from "../components/Header";
+import Sidebar from "../components/Sidebar";
+import NoteList from "../components/NoteList";
+import NoteView from "../components/NoteView";
+import NoteEditor from "../components/NoteEditor";
+import * as notesApi from "../utils/notesApi";
+
+type NotesPageMode = "list" | "view" | "edit" | "new";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [notes, setNotes] = useState<notesApi.Note[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedNote, setSelectedNote] = useState<notesApi.Note | null>(null);
+  const [mode, setMode] = useState<NotesPageMode>("list"); // could be "view", "edit", or "new"
+  const [error, setError] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+  // Load notes from API
+  const loadNotes = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const notes = await notesApi.fetchNotes();
+      setNotes(notes);
+    } catch (err) {
+      const error =
+        err && typeof err === "object" && "message" in err ? (err as { message: string }).message : "Failed to fetch notes";
+      setError(error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // On mount, load notes
+  useEffect(() => {
+    loadNotes();
+  }, [loadNotes]);
+
+  // Listen for query string changes (for selecting a note)
+  useEffect(() => {
+    function getNoteIdFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("note");
+    }
+    function handlePopState() {
+      const noteId = getNoteIdFromUrl();
+      setSelectedId(noteId);
+      setMode(noteId ? "view" : "list");
+    }
+    handlePopState();
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Fetch selected note details when needed
+  useEffect(() => {
+    async function loadNoteDetail() {
+      if (selectedId) {
+        setLoading(true);
+        setError(null);
+        try {
+          const note = await notesApi.fetchNote(selectedId);
+          setSelectedNote(note);
+        } catch (err) {
+          const error =
+            err && typeof err === "object" && "message" in err
+              ? (err as { message: string }).message
+              : "Failed to fetch note";
+          setError(error);
+          setSelectedNote(null);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setSelectedNote(null);
+      }
+    }
+    loadNoteDetail();
+  }, [selectedId]);
+
+  function handleNewNote() {
+    setSelectedId(null);
+    setMode("new");
+    setSelectedNote(null);
+    window.history.pushState(null, "", "/new");
+  }
+
+  function handleEditNote() {
+    setMode("edit");
+  }
+
+  function handleCancelEdit() {
+    if (selectedNote) {
+      setMode("view");
+    } else {
+      setMode("list");
+      window.history.pushState(null, "", "/");
+    }
+  }
+
+  async function handleSave(noteData: { title: string; content: string }) {
+    setLoading(true);
+    setError(null);
+    try {
+      if (mode === "new") {
+        const newNote = await notesApi.createNote(noteData);
+        setNotes((n) => [newNote, ...n]);
+        setSelectedId(newNote.id);
+        setSelectedNote(newNote);
+        setMode("view");
+        window.history.pushState(null, "", "/?note=" + encodeURIComponent(newNote.id));
+      } else if (mode === "edit" && selectedNote) {
+        const updated = await notesApi.updateNote(selectedNote.id, noteData);
+        setNotes((n) => n.map((note) => (note.id === updated.id ? updated : note)));
+        setSelectedNote(updated);
+        setMode("view");
+      }
+    } catch (err) {
+      const error =
+        err && typeof err === "object" && "message" in err ? (err as { message: string }).message : "Failed to save note";
+      setError(error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDeleteNote() {
+    if (!selectedNote) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await notesApi.deleteNote(selectedNote.id);
+      setNotes((n) => n.filter((note) => note.id !== selectedNote.id));
+      setSelectedId(null);
+      setSelectedNote(null);
+      setMode("list");
+      window.history.pushState(null, "", "/");
+    } catch (err) {
+      const error =
+        err && typeof err === "object" && "message" in err
+          ? (err as { message: string }).message
+          : "Failed to delete note";
+      setError(error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Render sidebar, note list, and detail/editor view
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
+      <Header />
+      <div className="flex flex-1 max-h-[calc(100vh-3.5rem)] overflow-hidden">
+        <Sidebar />
+        <main className="flex flex-1 h-full min-h-0 max-h-full">
+          <section className="w-[280px] max-w-xs min-w-[180px] hidden sm:block border-r border-secondary/10 p-0">
+            <NoteList notes={notes} selectedId={selectedId || undefined} />
+            <button
+              className="mt-4 px-4 py-2 rounded w-full bg-accent text-foreground font-semibold hover:bg-accent/80 focus:ring-2 focus:ring-primary transition"
+              onClick={handleNewNote}
+            >
+              + New Note
+            </button>
+          </section>
+          <section className="flex flex-col flex-1 h-full p-6 overflow-y-auto items-start">
+            {error && (
+              <div className="mb-4 text-red-500 bg-red-50 border border-red-300 px-4 py-2 rounded text-sm w-full">
+                {error}
+              </div>
+            )}
+            {mode === "new" && (
+              <NoteEditor
+                onSubmit={handleSave}
+                onCancel={handleCancelEdit}
+                loading={loading}
+              />
+            )}
+            {mode === "edit" && selectedNote && (
+              <NoteEditor
+                note={selectedNote}
+                onSubmit={handleSave}
+                onCancel={handleCancelEdit}
+                onDelete={handleDeleteNote}
+                loading={loading}
+              />
+            )}
+            {mode === "view" && selectedNote && (
+              <div className="w-full">
+                <NoteView note={selectedNote} />
+                <div className="mt-4">
+                  <button
+                    onClick={handleEditNote}
+                    className="px-4 py-2 rounded bg-accent text-background font-semibold hover:bg-accent/70"
+                  >
+                    Edit
+                  </button>
+                </div>
+              </div>
+            )}
+            {mode === "list" && (
+              <div className="w-full">
+                <h2 className="text-2xl text-primary font-semibold mb-4">Your Notes</h2>
+                <NoteList notes={notes} selectedId={selectedId || undefined} />
+                <button
+                  className="mt-4 px-4 py-2 rounded bg-accent text-foreground font-semibold hover:bg-accent/80 focus:ring-2 focus:ring-primary transition"
+                  onClick={handleNewNote}
+                >
+                  + New Note
+                </button>
+              </div>
+            )}
+          </section>
+        </main>
+      </div>
     </div>
   );
 }
