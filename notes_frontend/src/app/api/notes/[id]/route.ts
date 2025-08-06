@@ -20,56 +20,56 @@ async function deleteNote(_id: string) {
   return false;
 }
 
-// PUBLIC_INTERFACE
 /**
+ * PUBLIC_INTERFACE
  * Get a note by its ID.
+ * Uses correct signature for Next.js 13+/App Router.
  * @param request - the incoming Next.js request
+ * @param context - contains { params } with route parameters
  * @returns {Note | 404}
  */
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } }
+  context
 ) {
-  const {
-    params: { id },
-  } = context;
+  const id = context.params.id;
   const note = await getNoteById(id);
   if (!note) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(note);
 }
 
-// PUBLIC_INTERFACE
 /**
+ * PUBLIC_INTERFACE
  * Update a note by its ID.
+ * Uses correct signature for Next.js 13+/App Router.
  * @param request - the incoming Next.js request
+ * @param context - contains { params } with route parameters
  * @returns {Note | 404}
  */
 export async function PUT(
   request: NextRequest,
-  context: { params: { id: string } }
+  context
 ) {
-  const {
-    params: { id },
-  } = context;
+  const id = context.params.id;
   const data = await request.json();
   const note = await updateNote(id, data || {});
   if (!note) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(note);
 }
 
-// PUBLIC_INTERFACE
 /**
+ * PUBLIC_INTERFACE
  * Delete a note by its ID.
+ * Uses correct signature for Next.js 13+/App Router.
  * @param request - the incoming Next.js request
+ * @param context - contains { params } with route parameters
  * @returns {204 | 404}
  */
 export async function DELETE(
   _request: NextRequest,
-  context: { params: { id: string } }
+  context
 ) {
-  const {
-    params: { id },
-  } = context;
+  const id = context.params.id;
   const ok = await deleteNote(id);
   if (!ok) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return new Response(null, { status: 204 });
